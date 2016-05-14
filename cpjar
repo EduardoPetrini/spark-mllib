@@ -1,0 +1,16 @@
+#!/bin/bash
+
+if [ $# == 0 ]; then
+        echo "Uso: ./cpjar <master-name>";
+        exit;
+fi;
+
+MASTER=$1;
+
+echo "Building hadoop app..."
+sbt package;
+echo "Copying jar files to $MASTER..."
+scp target/scala-2.11/spark-mllib_2.11-1.0.jar hdp@$MASTER:/home/hdp/app-jar
+
+echo "done "; date;
+
