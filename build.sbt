@@ -19,7 +19,7 @@ autoScalaLibrary := false
 
 scalaHome := Some(file("/home/eduardo/programs/scala-2.11.8"))
 
-mainClass := Some("main.scala.master.spark.MainSpark")
+mainClass := Some("main.scala.master.spark.main.MainSpark")
 
 //libraryDependencies ++= Seq(
 //    "org.scalatest" % "scalatest_2.10" % "2.0.M5b" % "test"
