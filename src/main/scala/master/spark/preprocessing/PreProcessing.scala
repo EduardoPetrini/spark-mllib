@@ -7,16 +7,17 @@ import org.apache.hadoop.conf.Configuration
 import main.java.com.mestrado.utils.{ PreProcessingInstancias => pp }
 import scala.collection.mutable.ArrayBuffer
 import org.apache.spark.rdd.RDD
+import org.apache.spark.Accumulator
 
 object PreProcessing {
 
-  def preProcess(fileName: String, stopWordFileName: String, num_block: Int, sc: SparkContext, clusterUrl:String) :RDD[(String,ArrayBuffer[String])] = {
+  def preProcess(fileName: String, stopWordFileName: String, num_block: Int, sc: SparkContext, clusterUrl: String): RDD[(String, ArrayBuffer[String])] = {
     val inputFileRDD = sc.textFile(fileName, num_block)
     val c: Configuration = new Configuration()
     c.set("fs.defaultFS", "hdfs://note-home/");
-    
+
     val stopWords: java.util.Set[String] = StopWordsUtil.readStopWordObjectFromHDFS(stopWordFileName, c)
-    
+
     return inputFileRDD.map { line =>
       var lineSpt = line.split(";")
       if (lineSpt.length > 2) {
@@ -30,42 +31,55 @@ object PreProcessing {
             for (ttSp <- tSp) newTokens += ttSp
           }
         }
-        
-        (lineSpt(0).trim+":"+lineSpt(1).trim,newTokens)
-      }else{
-        (null,null)
+
+        (lineSpt(0).trim + ":" + lineSpt(1).trim, newTokens)
+      } else {
+        (null, null)
       }
     }
   }
-  
-  def getDescription(line: Array[String]) : String = {
+
+  def getDescription(line: Array[String]): String = {
     var desc: String = ""
-    for(i <- 2 until line.length){
-      if(i == line.length-1) desc += line(i)
-      else line(i)+";"
+    for (i <- 2 until line.length) {
+      if (i == line.length - 1) desc += line(i)
+      else line(i) + ";"
     }
     return desc
   }
-  
-  def calcAndGetIdf(datasetClean: RDD[(String,ArrayBuffer[String])]) : scala.collection.Map[String,Double] = {
+
+  def calcAndGetIdf(datasetClean: RDD[(String, ArrayBuffer[String])]): scala.collection.Map[String, (Double, Int)] = {
     val totalTransaction = datasetClean.count
-    val tokenCount = datasetClean flatMap {t =>
-      for(token <- t._2) yield (token,1)
+    val tokenCount = datasetClean flatMap { t =>
+      for (token <- t._2) yield (token, 1)
     } countByKey
-    
-   return tokenCount.map { case (token,count) =>
-//      val idf = calcIdf(totalTransaction,count)
-      (token, calcIdf(totalTransaction,count))
-      
+    var accumulator = 0
+    return tokenCount.map {
+      case (token, count) =>
+        accumulator += 1
+        (token, (calcIdf(totalTransaction, count), accumulator))
+
     }
-//    return null
+    //    return null
   }
-  
-  def calcIdf(n:Double, ni:Double): Double = {
-    return log2(n/ni)
+
+  def calcIdf(n: Double, ni: Double): Double = {
+    return log2(n / ni)
   }
-  
-  def log2(num:Double): Double = {
-    math.log(num)/math.log(2)
+
+  def log2(num: Double): Double = {
+    math.log(num) / math.log(2)
+  }
+
+  def classMapping(datasetClean: RDD[(String, ArrayBuffer[String])]): scala.collection.Map[String, Int] = {
+    val classes = datasetClean.map { classOfertaId =>
+      classOfertaId._1.split(":")(0)
+    }.distinct
+    var accumulator = 0
+   
+    return classes.map { x => 
+      accumulator += 1
+      (x,accumulator)
+    }.collectAsMap
   }
 }
