@@ -15,6 +15,7 @@ import java.io.BufferedWriter
 import java.io.File
 import java.io.FileWriter
 import main.java.com.mestrado.utils.MrUtils
+import org.apache.spark.storage.StorageLevel
 
 object MainSpark {
 
@@ -100,9 +101,9 @@ object MainSpark {
     preTime = System.currentTimeMillis()
     /*Clean entity descriptions*/
     val datasetTrainClean = PreProcessing.preProcess(inputTrainFileName, stopWordFileName, num_block, sc, clusterUrl)
-    datasetTrainClean.cache
+    datasetTrainClean.persist(StorageLevel.MEMORY_AND_DISK)
     val datasetTestClean = PreProcessing.preProcess(inputTestFileName, stopWordFileName, num_block, sc, clusterUrl)
-    datasetTestClean.cache
+    datasetTestClean.persist(StorageLevel.MEMORY_AND_DISK)
     
     /*Calcule IDF*/
     val tokenIdfLabel = PreProcessing.calcAndGetIdf(datasetTrainClean, num_block).collectAsMap()
