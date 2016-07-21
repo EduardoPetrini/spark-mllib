@@ -11,7 +11,7 @@ echo "Building hadoop app..."
 sbt package;
 echo "Copying jar files to $MASTER..."
 #scp target/scala-2.10/spark-mllib_2.10-1.0.jar hdp@$MASTER:/home/hdp/app-jar
-scp target/scala-2.10/spark-mllib_2.10-1.0.jar hadoop@$MASTER:/home/hadoop/petrini/app-jar
+scp target/scala-2.10/spark-mllib_nb_2.10-1.0.jar hadoop@$MASTER:/home/hadoop/petrini/app-jar
 
 echo "done "; date;
 

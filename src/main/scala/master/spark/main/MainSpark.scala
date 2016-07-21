@@ -32,16 +32,18 @@ object MainSpark {
 //  var logDir = "/home/hdp/petrini";//Dir for time and evaluation logs files
   var evaluationFile = logDir
   var fold = "1";
+  var lambda = 1.0
 
 
   def printConfig() {
     println("\n" + ("*" * 40) + "\n")
-    println("----MLlib----")
+    println("----MLlib Naive Bayes----")
     printf("Spark url: %s\n", sparkUrl)
     printf("User dir: %s\n", user)
     printf("HDFS url: %s\n", clusterUrl)
     printf("Dataset: %s\n", dataset)
     printf("Num block: %s\n", num_block)
+    printf("Lambda: %f\n",lambda)
     println("\n" + ("*" * 40) + "\n")
   }
 
@@ -59,8 +61,8 @@ object MainSpark {
     println("Print args:")
     for (elem <- args) println(elem)
 
-    if (args.length != 4) {
-      println("Error, missing arguments: <num_blocks> <dataset> <master-name> <fold>")
+    if (args.length != 5) {
+      println("Error, missing arguments: <num_blocks> <dataset> <master-name> <lambda> <fold>")
       System.exit(1)
     } else {
       sparkUrl = "spark://" + args(2) + ":7077"
@@ -70,7 +72,8 @@ object MainSpark {
       user = clusterUrl + "user/hdp/"
       trainFormatedDir = user + "trainFormated";
       testFormatedDir = user + "testFormated";
-      fold = args(3)
+      lambda = args(3).toDouble
+      fold = args(4)
     }
     excludeUsedDirs()
     printConfig()
@@ -98,20 +101,14 @@ object MainSpark {
     /*Clean entity descriptions*/
     val datasetTrainClean = PreProcessing.preProcess(inputTrainFileName, stopWordFileName, num_block, sc, clusterUrl)
     datasetTrainClean.cache
-//    PreProcessing.countInstancesSize(datasetTrainClean)
-//    //finish here
-//    sc.stop()
-//    System.exit(0)    
     val datasetTestClean = PreProcessing.preProcess(inputTestFileName, stopWordFileName, num_block, sc, clusterUrl)
     datasetTestClean.cache
-//    for(e <- datasetTrainClean) println(e)
     
     /*Calcule IDF*/
     val tokenIdfLabel = PreProcessing.calcAndGetIdf(datasetTrainClean, num_block).collectAsMap()
 
     /*Class Mapping*/
     val classMapping = PreProcessing.classMapping(datasetTrainClean)
-//    for(c <- classMapping) println("Class: \t"+c)
 
     val classNumber = classMapping.size
 
@@ -123,7 +120,6 @@ object MainSpark {
       for (token <- entity._2) {
         if (wasToken.add(token)) {
           val idfLabel = tokenIdfLabel(token)
-//          sb.append(idfLabel._2.toString).append(":").append(idfLabel._1.toString).append(" ")
           sb.append(idfLabel._2.toString).append(":").append(1).append(" ")
         }
       }
@@ -144,7 +140,6 @@ object MainSpark {
           if (wasToken.add(token)) {
             if (tokenIdfLabel.contains(token)) {
               val idfLabel = tokenIdfLabel(token)
-              //            sb.append(idfLabel._2.toString).append(":").append(idfLabel._1.toString).append(" ")
               sb.append(idfLabel._2.toString).append(":").append(1).append(" ")
             }
           }
@@ -162,11 +157,7 @@ object MainSpark {
     MrUtils.mergeOutputFiles(trainFormatedDir, trainFormatedDir+"/train")
     MrUtils.mergeOutputFiles(testFormatedDir, testFormatedDir+"/test")
     
-//    BuildArff.createArffData(classMapping, tokenIdfLabel, datasetTrainClean, dataset+"-train")
-//    BuildArff.createArffData(classMapping, tokenIdfLabel, datasetTestClean, dataset+"-test")
     runMLlibAlgorithms(logSb, classNumber, tokenIdfLabel.size, sc)
-    
-//    runGridSearchForAlgorithms(logSb, classNumber, tokenIdfLabel.size, sc)
     
     sc.stop();
 
@@ -181,13 +172,13 @@ object MainSpark {
   
   def runMLlibAlgorithms(logSb:StringBuilder, classNumber:Int, featureNumber:Int, sc:SparkContext){
     /*Run random forest*/
-    evaluationFile += "/evaluation/spark-mllib-rf-"+dataset+"-"+num_block+"-"+fold+".log"
-    rfTime = System.currentTimeMillis()
-    val logRf = RandomForestRun.run(trainFormatedDir + "/train", testFormatedDir + "/test", classNumber, featureNumber, sc)
-    rfTime = System.currentTimeMillis()-rfTime
-    logSb.append(logRf)
+//    evaluationFile += "/evaluation/spark-mllib-rf-"+dataset+"-"+num_block+"-"+fold+".log"
+//    rfTime = System.currentTimeMillis()
+//    val logRf = RandomForestRun.run(trainFormatedDir + "/train", testFormatedDir + "/test", classNumber, featureNumber, sc)
+//    rfTime = System.currentTimeMillis()-rfTime
+//    logSb.append(logRf)
 
-//    /*Run naive bayes*/
+    /*Run naive bayes*/
     evaluationFile += "/evaluation/spark-mllib-nb-"+dataset+"-"+num_block+"-"+fold+".log"
     nbTime = System.currentTimeMillis()
     val logNb = NaiveBayesRun.run(trainFormatedDir + "/train", testFormatedDir + "/test", featureNumber, sc)

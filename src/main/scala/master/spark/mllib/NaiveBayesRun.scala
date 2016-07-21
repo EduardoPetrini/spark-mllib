@@ -13,35 +13,23 @@ import main.scala.master.spark.util.Evaluation
 
 object NaiveBayesRun {
   def run(trainFileName: String, testFileName: String, featureNumber: Int, sc: SparkContext): String = {
-    val timeIni = System.currentTimeMillis()
-
     val dataTrain = MLUtils.loadLibSVMFile(sc, trainFileName, featureNumber)
 
-    val model = NaiveBayes.train(dataTrain, lambda = 0.001, modelType = "multinomial")
+    val model = NaiveBayes.train(dataTrain, MainSpark.lambda, modelType = "multinomial")
 
     val dataTest = MLUtils.loadLibSVMFile(sc, testFileName, featureNumber)
+    
     val predicteds = dataTest.map { point =>
       model.predict(point.features)
     }
 
-    val correct = predicteds.filter(p => p == 1.0).count()
-    val wrong = predicteds.filter(p => p == 0.0).count()
-    val acc = predicteds.mean()
-
-    val timeEnd = System.currentTimeMillis()
-
     var logSb: StringBuilder = new StringBuilder()
     logSb.append("\n\n" + ("*" * 40) + "\n\n")
     logSb.append("\t--- Naive Bayes summary ---\n\n")
-    logSb.append("Correct = " + correct)
-    logSb.append("\nWrong = " + wrong)
-    logSb.append("\nAcc = " + acc)
-    logSb.append("\nTime = " + ((timeEnd - timeIni) / 1000.0))
+    logSb.append("Lambda = " + MainSpark.lambda)
     logSb.append("\n\n" + ("*" * 40) + "\n\n")
 
-//    EvaluationPrediction.startEvaluation(predicteds.collect(), dataTest.collect())
     Evaluation.startEvaluation(predicteds, dataTest)
-    
     
     logSb.toString
   }
