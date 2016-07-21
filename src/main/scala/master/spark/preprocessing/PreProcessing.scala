@@ -14,10 +14,9 @@ object PreProcessing {
   def preProcess(fileName: String, stopWordFileName: String, num_block: Int, sc: SparkContext, clusterUrl: String): RDD[(String, ArrayBuffer[String])] = {
     val inputFileRDD = sc.textFile(fileName, num_block)
     val c: Configuration = new Configuration()
-    c.set("fs.defaultFS", "hdfs://note-home/");
+    c.set("fs.defaultFS", clusterUrl);
 
     val stopWords: java.util.Set[String] = StopWordsUtil.readStopWordObjectFromHDFS(stopWordFileName, c)
-
     return inputFileRDD.map { line =>
       var lineSpt = line.split(";")
       if (lineSpt.length > 2) {
@@ -28,11 +27,13 @@ object PreProcessing {
           val mt = pp.processaToken(t.trim, stopWords).asScala
           for (i <- 0 until mt.size) {
             val tSp: Array[String] = mt(i).split(" ")
-            for (ttSp <- tSp) newTokens += ttSp
+            for (ttSp <- tSp) newTokens += ttSp.trim
           }
         }
-
-        (lineSpt(0).trim + ":" + lineSpt(1).trim, newTokens)
+        
+        newTokens = newTokens.sortWith(_.compareTo(_) < 0)
+        
+        (lineSpt(0).trim.replaceAll("\\p{P}","").replaceAll(" +","").trim.toLowerCase() + ":" + lineSpt(1).trim, newTokens)
       } else {
         (null, null)
       }
@@ -48,17 +49,17 @@ object PreProcessing {
     return desc
   }
 
-  def calcAndGetIdf(datasetClean: RDD[(String, ArrayBuffer[String])]): scala.collection.Map[String, (Double, Int)] = {
+  def calcAndGetIdf(datasetClean: RDD[(String, ArrayBuffer[String])], num_blocks:Int): RDD[(String, (Double, Int))] = {
     val totalTransaction = datasetClean.count
-    val tokenCount = datasetClean flatMap { t =>
+    var tokenCount = datasetClean flatMap { t =>
       for (token <- t._2) yield (token, 1)
-    } countByKey
+    } mapValues {_ => 1L} reduceByKey(_ + _)
+    tokenCount = tokenCount.sortByKey(true, 1)
     var accumulator = 0
     return tokenCount.map {
       case (token, count) =>
         accumulator += 1
-        (token, (calcIdf(totalTransaction, count), accumulator))
-
+        (token.trim, (calcIdf(totalTransaction, count), accumulator))
     }
     //    return null
   }
@@ -75,11 +76,30 @@ object PreProcessing {
     val classes = datasetClean.map { classOfertaId =>
       classOfertaId._1.split(":")(0)
     }.distinct
-    var accumulator = 0
-   
+    var accumulator = -1
     return classes.map { x => 
       accumulator += 1
-      (x,accumulator)
+      (x.trim,accumulator)
     }.collectAsMap
+  }
+  
+  def countInstancesSize(datasetClean: RDD[(String, ArrayBuffer[String])]){
+    val list = datasetClean.collect()
+    var big = 0
+    var sma = 99999;
+    var sum = 0.0
+    for(i <- list){
+      val size = i._2.size
+      
+      big = if(size > big) size; else big;
+      sma = if(size < sma) size; else sma;
+      sum += size
+    }
+    
+    println("\nSmall: "+sma)
+    println("Big: "+big)
+    println("Average: "+(sum/list.size.toDouble)+"\n\n")
+    println("Sum: "+sum)
+    println("Size: "+list.size)
   }
 }

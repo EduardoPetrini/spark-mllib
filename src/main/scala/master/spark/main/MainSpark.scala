@@ -1,108 +1,218 @@
 package main.scala.master.spark.main
-import org.apache.spark.{ SparkConf, SparkContext }
+
+import scala.collection.mutable.HashMap
+import scala.collection.mutable.HashSet
+
+import org.apache.spark.SparkConf
+import org.apache.spark.SparkContext
+import org.apache.spark.rdd.RDD.rddToPairRDDFunctions
+
+import main.scala.master.spark.mllib.RandomForestRun
 import main.scala.master.spark.preprocessing.PreProcessing
-import org.apache.spark.mllib.classification.{ SVMModel, SVMWithSGD }
-import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
-import org.apache.spark.mllib.util.MLUtils
-import org.apache.hadoop.fs.Path
+import main.scala.master.spark.mllib.NaiveBayesRun
+import main.scala.master.spark.util.BuildArff
+import java.io.BufferedWriter
+import java.io.File
+import java.io.FileWriter
+import main.java.com.mestrado.utils.MrUtils
 
 object MainSpark {
 
   private var sparkUrl: String = ""
-  private var clusterUrl: String = ""
+  var clusterUrl: String = ""
   private var user: String = ""
-  private var num_block: Int = 1
+  var num_block: Int = 1
   private var trainFormatedDir: String = ""
+  private var testFormatedDir: String = ""
+  private var dataset: String = ""
+  private var preTime = 0.0
+  private var rfTime = 0.0
+  private var nbTime = 0.0
+  var logDir = "/home/hadoop/petrini";//Dir for time and evaluation logs files
+//  var logDir = "/home/hdp/petrini";//Dir for time and evaluation logs files
+  var evaluationFile = logDir
+  var fold = "1";
+
 
   def printConfig() {
-    println("\n" + ("*" * (sparkUrl.length + 10)) + "\n")
+    println("\n" + ("*" * 40) + "\n")
+    println("----MLlib----")
     printf("Spark url: %s\n", sparkUrl)
     printf("User dir: %s\n", user)
-    println("\n" + ("*" * (sparkUrl.length + 10)) + "\n")
+    printf("HDFS url: %s\n", clusterUrl)
+    printf("Dataset: %s\n", dataset)
+    printf("Num block: %s\n", num_block)
+    println("\n" + ("*" * 40) + "\n")
   }
 
-  def excludeUsedDirs(){
+  def excludeUsedDirs() {
     println("\n\nExclude used files...")
     val hadoopConf = new org.apache.hadoop.conf.Configuration()
     val hdfs = org.apache.hadoop.fs.FileSystem.get(new java.net.URI(clusterUrl), hadoopConf)
-    try { 
-      val fileName = Array[String](trainFormatedDir)
-      for(file <- fileName) {println("Deleting..."+file); hdfs.delete(new org.apache.hadoop.fs.Path(file), true)}
-     } catch { case _ : Throwable => { } }
+    try {
+      val fileName = Array[String](trainFormatedDir, testFormatedDir)
+      for (file <- fileName) { println("Deleting..." + file); hdfs.delete(new org.apache.hadoop.fs.Path(file), true) }
+    } catch { case _: Throwable => {} }
   }
+
   def initialConfig(args: Array[String]) {
     println("Print args:")
     for (elem <- args) println(elem)
 
-    if (args.length != 1) {
-      println("Error, missing arguments: <master-name>")
+    if (args.length != 4) {
+      println("Error, missing arguments: <num_blocks> <dataset> <master-name> <fold>")
       System.exit(1)
     } else {
-      sparkUrl = "spark://" + args(0) + ":7077"
-      clusterUrl = "hdfs://" + args(0) + "/"
+      sparkUrl = "spark://" + args(2) + ":7077"
+      clusterUrl = "hdfs://" + args(2) + "/"
+      num_block = args(0).toInt
+      dataset = args(1)
       user = clusterUrl + "user/hdp/"
       trainFormatedDir = user + "trainFormated";
+      testFormatedDir = user + "testFormated";
+      fold = args(3)
     }
     excludeUsedDirs()
     printConfig()
   }
 
+  def stop(sc: SparkContext, log: String) {
+    sc.stop();
+    println(log)
+    System.exit(0);
+  }
+
   def main(args: Array[String]): Unit = {
     initialConfig(args)
+    var logSb: StringBuilder = new StringBuilder()
+
+    logSb.append("\n\n" + ("*" * 40) + "\n\n")
+
     val inputTrainFileName: String = user + "input/treino/treino2"
+    val inputTestFileName: String = user + "input/teste/teste2"
     val stopWordFileName: String = user + "input/stopwords.ser"
     val conf = new SparkConf().setAppName("First test").setMaster(sparkUrl);
     val sc = new SparkContext(conf)
+
+    preTime = System.currentTimeMillis()
+    /*Clean entity descriptions*/
     val datasetTrainClean = PreProcessing.preProcess(inputTrainFileName, stopWordFileName, num_block, sc, clusterUrl)
     datasetTrainClean.cache
+//    PreProcessing.countInstancesSize(datasetTrainClean)
+//    //finish here
+//    sc.stop()
+//    System.exit(0)    
+    val datasetTestClean = PreProcessing.preProcess(inputTestFileName, stopWordFileName, num_block, sc, clusterUrl)
+    datasetTestClean.cache
+//    for(e <- datasetTrainClean) println(e)
+    
     /*Calcule IDF*/
-    val tokenIdfLabel = PreProcessing.calcAndGetIdf(datasetTrainClean)
+    val tokenIdfLabel = PreProcessing.calcAndGetIdf(datasetTrainClean, num_block).collectAsMap()
 
     /*Class Mapping*/
     val classMapping = PreProcessing.classMapping(datasetTrainClean)
+//    for(c <- classMapping) println("Class: \t"+c)
 
-    //    for((k,v) <- tokenIdfLabel) println(k+":\t"+v._1+" | "+v._2)
-    //    for((k,v) <- classMapping) println(k+":\t"+v)
+    val classNumber = classMapping.size
 
-    /*Create rdd to MLlib*/
+    /*Create formated file for MLlib*/
     val mlTrainFormated = datasetTrainClean.map { entity =>
       var sb: StringBuilder = new StringBuilder
       sb.append(classMapping(entity._1.split(":")(0)).toString).append(" ")
+      var wasToken: HashSet[String] = new HashSet[String]()
       for (token <- entity._2) {
-        val idfLabel = tokenIdfLabel(token)
-        
-        diminuir o tamanho do double aqui
-        sb.append(idfLabel._2.toString).append(":").append(idfLabel._1.toString).append(" ")
+        if (wasToken.add(token)) {
+          val idfLabel = tokenIdfLabel(token)
+//          sb.append(idfLabel._2.toString).append(":").append(idfLabel._1.toString).append(" ")
+          sb.append(idfLabel._2.toString).append(":").append(1).append(" ")
+        }
       }
       sb.toString.trim
     }
+    var indexCount = tokenIdfLabel.size
 
+    val mlTestFormated = datasetTestClean.map { entity =>
+      if (!classMapping.contains(entity._1.split(":")(0))) {
+        println("\n\nNot contains:")
+        println(entity._1.split(":")(0))
+        "#$@"
+      } else {
+        var sb: StringBuilder = new StringBuilder
+        sb.append(classMapping(entity._1.split(":")(0)).toString).append(" ")
+        var wasToken: HashSet[String] = new HashSet[String]()
+        for (token <- entity._2) {
+          if (wasToken.add(token)) {
+            if (tokenIdfLabel.contains(token)) {
+              val idfLabel = tokenIdfLabel(token)
+              //            sb.append(idfLabel._2.toString).append(":").append(idfLabel._1.toString).append(" ")
+              sb.append(idfLabel._2.toString).append(":").append(1).append(" ")
+            }
+          }
+        }
+        sb.toString.trim
+      }
+    }.filter {!_.equalsIgnoreCase("#$@")}
+    
+    logSb.append("Token idf size: "+tokenIdfLabel.size).append("\n")
+    
     mlTrainFormated.saveAsTextFile(trainFormatedDir)
-    val mlTrainInput = MLUtils.loadLabeledPoints(sc, trainFormatedDir)
+    mlTestFormated.saveAsTextFile(testFormatedDir)
+    preTime = System.currentTimeMillis() - preTime
+    
+    MrUtils.mergeOutputFiles(trainFormatedDir, trainFormatedDir+"/train")
+    MrUtils.mergeOutputFiles(testFormatedDir, testFormatedDir+"/test")
+    
+//    BuildArff.createArffData(classMapping, tokenIdfLabel, datasetTrainClean, dataset+"-train")
+//    BuildArff.createArffData(classMapping, tokenIdfLabel, datasetTestClean, dataset+"-test")
+    runMLlibAlgorithms(logSb, classNumber, tokenIdfLabel.size, sc)
+    
+//    runGridSearchForAlgorithms(logSb, classNumber, tokenIdfLabel.size, sc)
+    
+    sc.stop();
 
-    // Split data into training (60%) and test (40%).
-    val splits = mlTrainInput.randomSplit(Array(0.6, 0.4), seed = 11L)
-    val training = splits(0).cache()
-    val test = splits(1)
+    logSb.append("\n"+("-"*10)+" Execution Time "+("-"*10)+"\n")
+    logSb.append("PREP=").append(preTime/1000.0).append("\n")
+    logSb.append("RF=").append((preTime+rfTime)/1000.0).append("\n")
+    logSb.append("NB=").append((preTime+nbTime)/1000.0).append("\n")
+    logSb.append("\n" + ("*" * 40) + "\n\n").append("\n")
+    println(logSb.toString)
+    writeTxtLogInLocal(logSb.toString)
+  }
+  
+  def runMLlibAlgorithms(logSb:StringBuilder, classNumber:Int, featureNumber:Int, sc:SparkContext){
+    /*Run random forest*/
+    evaluationFile += "/evaluation/spark-mllib-rf-"+dataset+"-"+num_block+"-"+fold+".log"
+    rfTime = System.currentTimeMillis()
+    val logRf = RandomForestRun.run(trainFormatedDir + "/train", testFormatedDir + "/test", classNumber, featureNumber, sc)
+    rfTime = System.currentTimeMillis()-rfTime
+    logSb.append(logRf)
 
-    // Run training algorithm to build the model
-    val numIterations = 100
-    val model = SVMWithSGD.train(training, numIterations)
-
-    // Clear the default threshold.
-    model.clearThreshold()
-
-    // Compute raw scores on the test set.
-    val scoreAndLabels = test.map { point =>
-      val score = model.predict(point.features)
-      (score, point.label)
-    }
-
-    // Get evaluation metrics.
-    val metrics = new BinaryClassificationMetrics(scoreAndLabels)
-    val auROC = metrics.areaUnderROC()
-
-    println("Area under ROC = " + auROC)
-
+//    /*Run naive bayes*/
+    evaluationFile += "/evaluation/spark-mllib-nb-"+dataset+"-"+num_block+"-"+fold+".log"
+    nbTime = System.currentTimeMillis()
+    val logNb = NaiveBayesRun.run(trainFormatedDir + "/train", testFormatedDir + "/test", featureNumber, sc)
+    nbTime = System.currentTimeMillis() - nbTime
+    logSb.append(logNb)
+  }
+  
+  def runGridSearchForAlgorithms(logSb:StringBuilder, classNumber:Int, featureNumber:Int, sc:SparkContext){
+    /*Run random forest*/
+    rfTime = System.currentTimeMillis()
+    val logRf = RandomForestRun.runGridSearch(trainFormatedDir + "/train", classNumber, featureNumber, sc)
+    rfTime = System.currentTimeMillis()-rfTime
+    logSb.append(logRf)
+    
+     /*Run naive bayes*/
+//    nbTime = System.currentTimeMillis()
+//    val logNb = NaiveBayesRun.runGridSearch(trainFormatedDir + "/train", featureNumber, sc)
+//    nbTime = System.currentTimeMillis() - nbTime
+//    logSb.append(logNb)
+  }
+  
+  def writeTxtLogInLocal(data:String){
+    val file = new File(logDir+"/mllib/spark-mllib-"+num_block+"-"+dataset+"-"+fold+".txt")
+    val bw = new BufferedWriter(new FileWriter(file))
+    bw.write(data)
+    bw.close()
   }
 }
