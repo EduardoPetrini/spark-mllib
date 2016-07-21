@@ -15,6 +15,7 @@ import java.io.BufferedWriter
 import java.io.File
 import java.io.FileWriter
 import main.java.com.mestrado.utils.MrUtils
+import org.apache.spark.storage.StorageLevel
 
 object MainSpark {
 
@@ -32,18 +33,20 @@ object MainSpark {
 //  var logDir = "/home/hdp/petrini";//Dir for time and evaluation logs files
   var evaluationFile = logDir
   var fold = "1";
-  var lambda = 1.0
+  var maxDepth = 30
+  var maxBins = 2
 
 
   def printConfig() {
     println("\n" + ("*" * 40) + "\n")
-    println("----MLlib Naive Bayes----")
+    println("----MLlib Random Forest----")
     printf("Spark url: %s\n", sparkUrl)
     printf("User dir: %s\n", user)
     printf("HDFS url: %s\n", clusterUrl)
     printf("Dataset: %s\n", dataset)
     printf("Num block: %s\n", num_block)
-    printf("Lambda: %f\n",lambda)
+    printf("Max Depth: %d\n",maxDepth)
+    printf("Max Bins: %d\n",maxBins)
     println("\n" + ("*" * 40) + "\n")
   }
 
@@ -61,8 +64,8 @@ object MainSpark {
     println("Print args:")
     for (elem <- args) println(elem)
 
-    if (args.length != 5) {
-      println("Error, missing arguments: <num_blocks> <dataset> <master-name> <lambda> <fold>")
+    if (args.length != 6) {
+      println("Error, missing arguments: <num_blocks> <dataset> <master-name> <maxDepth> <maxBins> <fold>")
       System.exit(1)
     } else {
       sparkUrl = "spark://" + args(2) + ":7077"
@@ -72,8 +75,9 @@ object MainSpark {
       user = clusterUrl + "user/hdp/"
       trainFormatedDir = user + "trainFormated";
       testFormatedDir = user + "testFormated";
-      lambda = args(3).toDouble
-      fold = args(4)
+      maxDepth = args(3).toInt
+      maxBins = args(4).toInt
+      fold = args(5)
     }
     excludeUsedDirs()
     printConfig()
@@ -100,9 +104,9 @@ object MainSpark {
     preTime = System.currentTimeMillis()
     /*Clean entity descriptions*/
     val datasetTrainClean = PreProcessing.preProcess(inputTrainFileName, stopWordFileName, num_block, sc, clusterUrl)
-    datasetTrainClean.cache
+    datasetTrainClean.persist(StorageLevel.MEMORY_AND_DISK)
     val datasetTestClean = PreProcessing.preProcess(inputTestFileName, stopWordFileName, num_block, sc, clusterUrl)
-    datasetTestClean.cache
+    datasetTestClean.persist(StorageLevel.MEMORY_AND_DISK)
     
     /*Calcule IDF*/
     val tokenIdfLabel = PreProcessing.calcAndGetIdf(datasetTrainClean, num_block).collectAsMap()
@@ -172,18 +176,18 @@ object MainSpark {
   
   def runMLlibAlgorithms(logSb:StringBuilder, classNumber:Int, featureNumber:Int, sc:SparkContext){
     /*Run random forest*/
-//    evaluationFile += "/evaluation/spark-mllib-rf-"+dataset+"-"+num_block+"-"+fold+".log"
-//    rfTime = System.currentTimeMillis()
-//    val logRf = RandomForestRun.run(trainFormatedDir + "/train", testFormatedDir + "/test", classNumber, featureNumber, sc)
-//    rfTime = System.currentTimeMillis()-rfTime
-//    logSb.append(logRf)
+    evaluationFile += "/evaluation/spark-mllib-rf-"+dataset+"-"+num_block+"-"+fold+".log"
+    rfTime = System.currentTimeMillis()
+    val logRf = RandomForestRun.run(trainFormatedDir + "/train", testFormatedDir + "/test", classNumber, featureNumber, sc)
+    rfTime = System.currentTimeMillis()-rfTime
+    logSb.append(logRf)
 
     /*Run naive bayes*/
-    evaluationFile += "/evaluation/spark-mllib-nb-"+dataset+"-"+num_block+"-"+fold+".log"
-    nbTime = System.currentTimeMillis()
-    val logNb = NaiveBayesRun.run(trainFormatedDir + "/train", testFormatedDir + "/test", featureNumber, sc)
-    nbTime = System.currentTimeMillis() - nbTime
-    logSb.append(logNb)
+//    evaluationFile += "/evaluation/spark-mllib-nb-"+dataset+"-"+num_block+"-"+fold+".log"
+//    nbTime = System.currentTimeMillis()
+//    val logNb = NaiveBayesRun.run(trainFormatedDir + "/train", testFormatedDir + "/test", featureNumber, sc)
+//    nbTime = System.currentTimeMillis() - nbTime
+//    logSb.append(logNb)
   }
   
   def runGridSearchForAlgorithms(logSb:StringBuilder, classNumber:Int, featureNumber:Int, sc:SparkContext){

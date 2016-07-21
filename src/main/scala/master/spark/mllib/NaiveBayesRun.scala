@@ -15,7 +15,7 @@ object NaiveBayesRun {
   def run(trainFileName: String, testFileName: String, featureNumber: Int, sc: SparkContext): String = {
     val dataTrain = MLUtils.loadLibSVMFile(sc, trainFileName, featureNumber)
 
-    val model = NaiveBayes.train(dataTrain, MainSpark.lambda, modelType = "multinomial")
+    val model = NaiveBayes.train(dataTrain, lambda = 1.0, modelType = "multinomial")
 
     val dataTest = MLUtils.loadLibSVMFile(sc, testFileName, featureNumber)
     
@@ -26,7 +26,7 @@ object NaiveBayesRun {
     var logSb: StringBuilder = new StringBuilder()
     logSb.append("\n\n" + ("*" * 40) + "\n\n")
     logSb.append("\t--- Naive Bayes summary ---\n\n")
-    logSb.append("Lambda = " + MainSpark.lambda)
+    logSb.append("Lambda = " + 1.0)
     logSb.append("\n\n" + ("*" * 40) + "\n\n")
 
     Evaluation.startEvaluation(predicteds, dataTest)

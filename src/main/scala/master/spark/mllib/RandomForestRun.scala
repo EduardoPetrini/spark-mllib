@@ -13,59 +13,41 @@ import java.io.FileWriter
 import main.scala.master.spark.main.MainSpark
 import main.java.com.mestrado.utils.EvaluationPrediction
 import main.scala.master.spark.util.Evaluation
+import org.apache.spark.storage.StorageLevel
 
 object RandomForestRun {
 
   def run(trainFileName: String, testFileName: String, numClasses: Int, featureNumber: Int, sc: SparkContext): String = {
-    val timeIni = System.currentTimeMillis()
-
     val dataTrain = MLUtils.loadLibSVMFile(sc, trainFileName, featureNumber, 2)
-    dataTrain.cache()
+    dataTrain.persist(StorageLevel.MEMORY_AND_DISK)
     val treeStrategy = Strategy.defaultStrategy("Classification")
 
     /*If "auto" is set, this parameter is set based on numTrees: if numTrees == 1, set to "all"; if numTrees > 1 (forest) set to "sqrt".*/
-    //    val featureSubsetStrategy = "auto" // Let the algorithm choose.  "auto", "all", "sqrt", "log2", "onethird"
     val featureSubsetStrategy = "sqrt"
-    //    val categoricalFeaturesInfo = scala.collection.immutable.Map[Int, Int]()
     val categoricalFeaturesInfo = for (i <- 0 to featureNumber - 1) yield (i -> 2)
     var logSb: StringBuilder = new StringBuilder()
 
     val dataTest = MLUtils.loadLibSVMFile(sc, testFileName, featureNumber)
-    dataTest.cache()
-    var par: Map[String, String] = new HashMap[String, String]()
+    dataTest.persist(StorageLevel.MEMORY_AND_DISK)
     val numTrees = 200
     val impurity = "gini"
-    val maxDepth = 30
-    val maxBins = 82
-    val model = RandomForest.trainClassifier(dataTrain, numClasses, categoricalFeaturesInfo.toMap, numTrees, featureSubsetStrategy, impurity, maxDepth, maxBins)
+
+    val model = RandomForest.trainClassifier(dataTrain, numClasses, categoricalFeaturesInfo.toMap, numTrees, featureSubsetStrategy, impurity, MainSpark.maxDepth, MainSpark.maxBins)
 
     val predicteds = dataTest.map { point =>
       model.predict(point.features)
     }
     predicteds.cache()
-//    val correct = predicteds.filter(p => p == 1.0).count()
-//    val wrong = predicteds.filter(p => p == 0.0).count()
-//    val acc = predicteds.mean()
-
-    val timeEnd = System.currentTimeMillis()
 
     logSb.append("\n\n" + ("*" * 40) + "\n\n")
     logSb.append("\t--- Random Forest summary new major--- \n\n")
     logSb.append("\nNumTree = " + numTrees)
-    logSb.append("\nMaxDepth = " + maxDepth)
-    logSb.append("\nMaxBins = " + maxBins)
+    logSb.append("\nMaxDepth = " + MainSpark.maxDepth)
+    logSb.append("\nMaxBins = " + MainSpark.maxBins)
     logSb.append("\nImpurity = " + impurity)
-//    logSb.append("\nCorrect = " + correct)
-//    logSb.append("\nWrong = " + wrong)
-//    logSb.append("\nAcc = " + acc)
-    logSb.append("\nTime = " + ((timeEnd - timeIni) / 1000.0))
     logSb.append("\n\n" + ("*" * 40) + "\n\n")
-    par += ("maxDepth" -> maxDepth.toString())
-    par += ("maxBins" -> maxBins.toString())
-    par += ("impurity" -> impurity)
     
     /*Evaluation*/
-//    EvaluationPrediction.startEvaluation(predicteds.collect(), dataTest.collect())
     Evaluation.startEvaluation(predicteds, dataTest)
     logSb.toString
   }
