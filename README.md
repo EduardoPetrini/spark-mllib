@@ -1,2 +1,2 @@
-# spark-mllib
-This project is for master level
+# Spark-mllib
+Spark MLlib Random Forest for entity resolution
