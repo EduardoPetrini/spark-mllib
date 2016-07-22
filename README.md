@@ -1,2 +1,2 @@
-# spark-mllib
-This project is for master level
+# Spark-mllib
+Spark MLlib Naive Bayes for entity resolution

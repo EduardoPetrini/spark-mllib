@@ -164,7 +164,7 @@ object MainSpark {
 
     logSb.append("\n"+("-"*10)+" Execution Time "+("-"*10)+"\n")
     logSb.append("PREP=").append(preTime/1000.0).append("\n")
-    logSb.append("RF=").append((preTime+rfTime)/1000.0).append("\n")
+//    logSb.append("RF=").append((preTime+rfTime)/1000.0).append("\n")
     logSb.append("NB=").append((preTime+nbTime)/1000.0).append("\n")
     logSb.append("\n" + ("*" * 40) + "\n\n").append("\n")
     println(logSb.toString)
@@ -202,7 +202,7 @@ object MainSpark {
   }
   
   def writeTxtLogInLocal(data:String){
-    val file = new File(logDir+"/mllib/spark-mllib-"+num_block+"-"+dataset+"-"+fold+".txt")
+    val file = new File(logDir+"/mllib/spark-mllib-nb-"+num_block+"-"+dataset+"-"+fold+".txt")
     val bw = new BufferedWriter(new FileWriter(file))
     bw.write(data)
     bw.close()
