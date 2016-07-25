@@ -19,7 +19,7 @@ object RandomForestRun {
 
   def run(trainFileName: String, testFileName: String, numClasses: Int, featureNumber: Int, sc: SparkContext): String = {
     val timeTrainBegin = System.currentTimeMillis()
-    val dataTrain = MLUtils.loadLibSVMFile(sc, trainFileName, featureNumber, 2)
+    val dataTrain = MLUtils.loadLibSVMFile(sc, trainFileName, featureNumber, MainSpark.num_block)
     dataTrain.persist(StorageLevel.MEMORY_AND_DISK)
     val treeStrategy = Strategy.defaultStrategy("Classification")
 
@@ -35,7 +35,7 @@ object RandomForestRun {
 
     val timeTrainEnd = System.currentTimeMillis()
     val timeTestBegin = System.currentTimeMillis()
-    val dataTest = MLUtils.loadLibSVMFile(sc, testFileName, featureNumber)
+    val dataTest = MLUtils.loadLibSVMFile(sc, testFileName, featureNumber, MainSpark.num_block)
     dataTest.persist(StorageLevel.MEMORY_AND_DISK)
     val predicteds = dataTest.map { point =>
       model.predict(point.features)
