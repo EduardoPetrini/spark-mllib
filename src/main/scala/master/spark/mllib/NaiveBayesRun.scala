@@ -14,19 +14,26 @@ import org.apache.spark.storage.StorageLevel
 
 object NaiveBayesRun {
   def run(trainFileName: String, testFileName: String, featureNumber: Int, sc: SparkContext): String = {
+    val timeTrainBegin = System.currentTimeMillis()
     val dataTrain = MLUtils.loadLibSVMFile(sc, trainFileName, featureNumber)
     dataTrain.persist(StorageLevel.MEMORY_AND_DISK)
     val model = NaiveBayes.train(dataTrain, MainSpark.lambda, modelType = "multinomial")
+    val timeTrainEnd = System.currentTimeMillis()
+    
+    val timeTestBegin = System.currentTimeMillis()
     val dataTest = MLUtils.loadLibSVMFile(sc, testFileName, featureNumber)
     dataTest.persist(StorageLevel.MEMORY_AND_DISK)
     val predicteds = dataTest.map { point =>
       model.predict(point.features)
     }
     predicteds.cache
+    val timeTestEnd = System.currentTimeMillis()
     var logSb: StringBuilder = new StringBuilder()
     logSb.append("\n\n" + ("*" * 40) + "\n\n")
     logSb.append("\t--- Naive Bayes summary ---\n\n")
     logSb.append("Lambda = " + MainSpark.lambda)
+    logSb.append("\nTREINO=" +(timeTrainEnd-timeTrainBegin)/1000.0)
+    logSb.append("\nTESTE=" +(timeTestEnd-timeTestBegin)/1000.0)
     logSb.append("\n\n" + ("*" * 40) + "\n\n")
 
     Evaluation.startEvaluation(predicteds, dataTest)
