@@ -29,12 +29,12 @@ object MainSpark {
   private var preTime = 0.0
   private var rfTime = 0.0
   private var nbTime = 0.0
-  var logDir = "/home/hadoop/petrini";//Dir for time and evaluation logs files
-//  var logDir = "/home/hdp/petrini";//Dir for time and evaluation logs files
+//  var logDir = "/home/hadoop/petrini";//Dir for time and evaluation logs files
+  var logDir = "/home/hdp/petrini";//Dir for time and evaluation logs files
   var evaluationFile = logDir
   var fold = "1";
   var lambda = 1.0
-
+  var featurePercent = 1.0
 
   def printConfig() {
     println("\n" + ("*" * 40) + "\n")
@@ -62,8 +62,8 @@ object MainSpark {
     println("Print args:")
     for (elem <- args) println(elem)
 
-    if (args.length != 5) {
-      println("Error, missing arguments: <num_blocks> <dataset> <master-name> <lambda> <fold>")
+    if (args.length != 6) {
+      println("Error, missing arguments: <num_blocks> <dataset> <master-name> <lambda> <featuresPercent> <fold>")
       System.exit(1)
     } else {
       sparkUrl = "spark://" + args(2) + ":7077"
@@ -74,7 +74,8 @@ object MainSpark {
       trainFormatedDir = user + "trainFormated";
       testFormatedDir = user + "testFormated";
       lambda = args(3).toDouble
-      fold = args(4)
+      featurePercent = args(4).toDouble
+      fold = args(5)
     }
     excludeUsedDirs()
     printConfig()
@@ -182,7 +183,7 @@ object MainSpark {
     /*Run naive bayes*/
     evaluationFile += "/evaluation/spark-mllib-nb-"+dataset+"-"+num_block+"-"+fold+".log"
     nbTime = System.currentTimeMillis()
-    val logNb = NaiveBayesRun.run(trainFormatedDir + "/train", testFormatedDir + "/test", featureNumber, sc)
+    val logNb = NaiveBayesRun.runWithFeatureSelection(trainFormatedDir + "/train", testFormatedDir + "/test", featureNumber, sc)
     nbTime = System.currentTimeMillis() - nbTime
     logSb.append(logNb)
   }

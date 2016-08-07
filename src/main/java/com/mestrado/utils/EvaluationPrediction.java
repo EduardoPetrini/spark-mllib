@@ -132,6 +132,7 @@ public class EvaluationPrediction {
 		.append(format.format(aveRecall*100)).append("%\t")
 		.append(format.format(macro*100)).append("%\t")
 		.append(format.format(micro*100)).append("%\t\n\n");
+		System.out.println(sb.toString());
 		MrUtils.saveFileInLocal(sb.toString(), MainSpark.evaluationFile());
 	}
 

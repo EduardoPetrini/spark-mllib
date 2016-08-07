@@ -40,6 +40,37 @@ object NaiveBayesRun {
     
     logSb.toString
   }
+  
+   def runWithFeatureSelection(trainFileName: String, testFileName: String, featureNumber: Int, sc: SparkContext): String = {
+    val timeTrainBegin = System.currentTimeMillis()
+    val newFeatureNumber = (featureNumber/MainSpark.featurePercent).toInt
+    val files = FeaturesSelection.selectFeatures(trainFileName, testFileName, featureNumber, MainSpark.featurePercent, sc)
+    
+    val dataTrain = MLUtils.loadLabeledPoints(sc, files._1, MainSpark.num_block)
+    dataTrain.persist(StorageLevel.MEMORY_AND_DISK)
+    val model = NaiveBayes.train(dataTrain, MainSpark.lambda, modelType = "multinomial")
+    val timeTrainEnd = System.currentTimeMillis()
+    
+    val timeTestBegin = System.currentTimeMillis()
+    val dataTest = MLUtils.loadLabeledPoints(sc, files._2, MainSpark.num_block)
+    dataTest.persist(StorageLevel.MEMORY_AND_DISK)
+    val predicteds = dataTest.map { point =>
+      model.predict(point.features)
+    }
+    predicteds.cache
+    val timeTestEnd = System.currentTimeMillis()
+    var logSb: StringBuilder = new StringBuilder()
+    logSb.append("\n\n" + ("*" * 40) + "\n\n")
+    logSb.append("\t--- Naive Bayes summary with fs ---\n\n")
+    logSb.append("Lambda = " + MainSpark.lambda)
+    logSb.append("\nTREINO=" +(timeTrainEnd-timeTrainBegin)/1000.0)
+    logSb.append("\nTESTE=" +(timeTestEnd-timeTestBegin)/1000.0)
+    logSb.append("\n\n" + ("*" * 40) + "\n\n")
+
+    Evaluation.startEvaluation(predicteds, dataTest)
+    
+    logSb.toString
+  }
 
   def runGridSearch(trainFileName: String, featureNumber: Int, sc: SparkContext): String = {
     val timeIni = System.currentTimeMillis()

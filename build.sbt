@@ -1,4 +1,4 @@
-name := "spark-mllib_nb"
+name := "spark-mllib_nb-fs"
 
 version := "1.0"
 
