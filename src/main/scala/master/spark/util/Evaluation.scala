@@ -5,7 +5,7 @@ import org.apache.spark.rdd.RDD
 import main.java.com.mestrado.utils.EvaluationPrediction
 
 object Evaluation {
-  def startEvaluation(predicted:RDD[Double], original:RDD[LabeledPoint]){
+  def startEvaluation(predicted:RDD[Double], original:RDD[LabeledPoint]) : Array[String] ={
    var predictedArray = new java.util.ArrayList[java.lang.Double]()
    var originalArray = new java.util.ArrayList[java.lang.Double]()
    

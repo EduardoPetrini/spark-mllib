@@ -5,17 +5,13 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-import org.apache.spark.mllib.regression.LabeledPoint;
-
-import main.scala.master.spark.main.MainSpark;
-
 
 public class EvaluationPrediction {
 
 	private static HashMap<String, String> predictedHash = null;
 	public static HashMap<String, Integer> realClassCount = null;
 
-	public static void startEvaluation(ArrayList<Double> predictedArray, ArrayList<Double> originalArray) {
+	public static String[] startEvaluation(ArrayList<Double> predictedArray, ArrayList<Double> originalArray) {
 		predictedHash = new HashMap<String, String>();
 		realClassCount = new HashMap<String, Integer>();
 
@@ -49,7 +45,7 @@ public class EvaluationPrediction {
 //		}
 
 		StringBuilder sb = new StringBuilder();
-		sb.append(LocalDateTime.now()).append("\n");
+//		sb.append(LocalDateTime.now()).append("\n");
 //		sb.append("Classe\tPrecision\tRecall\t\tF\n");
 		DecimalFormat format = new DecimalFormat("##0.00");
 		for (String classID : realClassCount.keySet()) {
@@ -121,19 +117,14 @@ public class EvaluationPrediction {
 		double avePrecision = (somaP / realClassCount.size());
 		double aveRecall = (somaR / realClassCount.size());
 		double macro = (somaFmen / realClassCount.size());
-		sb.append("\nEquals:\t\t"+equals);
-		sb.append("\nDifferent:\t\t"+different);
-		sb.append("\nPrecision:\t\t" + avePrecision).append("\n");
-		sb.append("Recall:\t\t" + aveRecall).append("\n");
-		sb.append("Macro:\t\t" + macro).append("\n");
-		sb.append("Micro:\t\t" + micro).append("\n");
-		sb.append("Precistion\tRecall\tMacroF1\tMicroF1\n");
-		sb.append(format.format(avePrecision*100)).append("%\t")
-		.append(format.format(aveRecall*100)).append("%\t")
-		.append(format.format(macro*100)).append("%\t")
-		.append(format.format(micro*100)).append("%\t\n\n");
+
+		sb.append(format.format(avePrecision*100)).append("\t")
+		.append(format.format(aveRecall*100)).append("\t")
+		.append(format.format(macro*100)).append("\t")
+		.append(format.format(micro*100)).append("\t\n\n");
 		System.out.println(sb.toString());
-		MrUtils.saveFileInLocal(sb.toString(), MainSpark.evaluationFile());
+		return new String[]{Double.toString(avePrecision*100), Double.toString(aveRecall*100), Double.toString(macro*100),Double.toString(micro*100)};
+//		MrUtils.saveFileInLocal(sb.toString(), MainSpark.evaluationFile());
 	}
 
 	private static int[] origialTestFileComparationText(ArrayList<Double> originalArray, HashMap<String, Integer> realAndPredictedClass) {
