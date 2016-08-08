@@ -29,8 +29,8 @@ object MainSpark {
   private var preTime = 0.0
   private var rfTime = 0.0
   private var nbTime = 0.0
-//  var logDir = "/home/hadoop/petrini";//Dir for time and evaluation logs files
-  var logDir = "/home/hdp/petrini";//Dir for time and evaluation logs files
+  var logDir = "/home/hadoop/petrini";//Dir for time and evaluation logs files
+//  var logDir = "/home/hdp/petrini";//Dir for time and evaluation logs files
   var evaluationFile = logDir
   var fold = "1";
   var lambda = 1.0
